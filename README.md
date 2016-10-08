@@ -1,0 +1,1 @@
+Personal bot for Discord
