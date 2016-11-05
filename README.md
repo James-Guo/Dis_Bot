@@ -1,6 +1,9 @@
 # **dis_bot**
 Personal bot for use on a Discord channel
 
+![alt text](screenshots/help.png)
+
+
 ### **Features**
 ------------------------------------------
 * League of Legends API integration
