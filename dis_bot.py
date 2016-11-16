@@ -5,6 +5,7 @@ import random                           # to generate random numbers
 import asyncio                          # for writing single-threaded concurrent code 
 import configparser                     # reading config files
 
+from riotwatcher import RiotWatcher
 from riotwatcher import riotwatcher     # wrapper for League of Legends API
 from riotwatcher import OCEANIA         # import OCEANIA region
 from pprint import pprint               # for nicely formatted printing
@@ -14,6 +15,8 @@ client = discord.Client()
 # discord token
 global discord_token
 global riot_token
+
+
 
 
 def read_config():
@@ -69,6 +72,84 @@ def get_LoL_stats(summonername):
         return -1
 
 
+async def test(message):
+    # for testing purposes
+
+    author = message.author
+
+    tmp = client.send_message(message.channel, 'Calculating messages...')
+    for log in client.logs_from(message.channel, limit=100):
+        if log.author == message.author:
+            counter += 1
+    await client.edit_message(tmp, 'You have {} messages.'.format(counter))
+
+
+async def sleep(message):
+    # sleep
+    await asyncio.sleep(5)
+    await client.send_message(message.channel, 'Done sleeping')
+
+async def greet(message):
+    # greetings
+    await client.send_message(message.channel, 'Say hello')
+    msg = await client.wait_for_message(author=message.author, content='hello')
+    await client.send_message(message.channel, 'Hello.')
+
+
+async def roll(message):
+    # roll 0-100
+    number = random.randint(0, 100)
+    await client.send_message(message.channel, "%s: %i " % (message.author, number))
+
+
+
+async def choose(message):
+    my_string = message.content.replace("!choose ", "")
+    my_list = my_string.split(",")
+
+    await client.send_message(message.channel, random.choice(my_list))
+
+async def join(message):
+    # joining different servers
+    join_link = message.content.replace("!join ", "")
+    print("Join link", join_link)
+    client.accept_invite(join_link)
+    await client.send_message(message.channel, "Bot has joined")
+
+
+async def lolstats(message):
+    # for getting LoL stats
+    summonername = message.content.replace("!lolstats ", "")
+    summonername = message.content.replace("!lolstats", "")
+
+    print("Summoner name ", summonername)
+    stats = get_LoL_stats(summonername)
+
+    if stats == -1:
+        # Can't request from Riot API anymore
+        await client.send_message(message.channel, "Wait 1 minute")
+    if stats == -2:
+        # Can't find summonername
+        await client.send_message(message.channel, summonername + " not found")
+    else:
+        # Print stats
+        output_string = "**Summoner:** %s\n**Rank:** %s %s\n**Wins:** %s\n**Losses:** %s" % (
+            stats["summonername"], stats["ranked"]["tier"], stats["ranked"]["division"],
+            stats["ranked"]["wins"], stats["ranked"]["losses"])
+
+        output_string += "\n<http://oce.op.gg/summoner/userName=" + summonername +">"
+        await client.send_message(message.channel, output_string)
+
+
+async def bot_help(message):
+    # for help
+    output_string = ("Functions\n"
+                     "**!test** - for testing purposes\n"
+                     "**!lolstats** <summonername>- returns LoL stats\n"
+                     "**!roll** - returns a number between 0 - 100\n"
+                     "**!choose** <item1, item2, item3> - returns random item\n")
+    await client.send_message(message.channel, output_string)
+
 @client.event
 async def on_ready():
     print('Logged in as')
@@ -80,74 +161,27 @@ async def on_ready():
 @client.event
 async def on_message(message):
     ''' Action on message call '''
-    author = message.author
 
-    if message.content.startswith('!test'):
-        # for testing purposes
-        counter = 0
-        tmp = await client.send_message(message.channel, 'Calculating messages...')
-        async for log in client.logs_from(message.channel, limit=100):
-            if log.author == message.author:
-                counter += 1
-        await client.edit_message(tmp, 'You have {} messages.'.format(counter))
-    elif message.content.startswith('!sleep'):
-        # sleep
-        await asyncio.sleep(5)
-        await client.send_message(message.channel, 'Done sleeping')
+    # maps functions to commands
+    dispatcher = {
+        "test": test,
+        "sleep": sleep,
+        "greet": greet,
+        "roll": roll,
+        "choose": choose,
+        "join": join,
+        "lolstats": lolstats,
+        "help": bot_help
+    }
 
-    if message.content.startswith('!greet'):
-        # greetings
-        await client.send_message(message.channel, 'Say hello')
-        msg = await client.wait_for_message(author=message.author, content='hello')
-        await client.send_message(message.channel, 'Hello.')
+    if message.content.startswith("!"):
+        # get the command
+        command = message.content.split(' ', 1)[0]
+        command = command.replace("!", "")
 
-    elif message.content.startswith("!roll"):
-        # roll 0-100
-        number = random.randint(0, 100)
-        await client.send_message(message.channel, "%s: %i " % (author, number))
+        # call the function
+        await dispatcher[command](message)
 
-    elif message.content.startswith("!choose "):
-        my_string = message.content.replace("!choose ", "")
-        my_list = my_string.split(",")
-
-        await client.send_message(message.channel, random.choice(my_list))
-
-    elif message.content.startswith("!join "):
-        # joining different servers
-        join_link = message.content.replace("!join ", "")
-        print("Join link", join_link)
-        client.accept_invite(join_link)
-        await client.send_message(message.channel, "Bot has joined")
-
-    elif message.content.startswith("!lolstats "):
-        # for getting LoL stats
-        summonername = message.content.replace("!lolstats ", "")
-        print("Summoner name ", summonername)
-        stats = get_LoL_stats(summonername)
-
-        if stats == -1:
-            # Can't request from Riot API anymore
-            await client.send_message(message.channel, "Wait 1 minute")
-        if stats == -2:
-            # Can't find summonername
-            await client.send_message(message.channel, summonername + " not found")
-        else:
-            # Print stats
-            output_string = "**Summoner:** %s\n**Rank:** %s %s\n**Wins:** %s\n**Losses:** %s" % (
-                stats["summonername"], stats["ranked"]["tier"], stats["ranked"]["division"],
-                stats["ranked"]["wins"], stats["ranked"]["losses"])
-
-            output_string += "\n<http://oce.op.gg/summoner/userName=" + summonername +">"
-            await client.send_message(message.channel, output_string)
-
-    elif message.content.startswith("!"):
-        # for help
-        output_string = ("Functions\n"
-                         "**!test** - for testing purposes\n"
-                         "**!lolstats** <summonername>- returns LoL stats\n"
-                         "**!roll** - returns a number between 0 - 100\n"
-                         "**!choose** <item1, item2, item3> - returns random item\n")
-        await client.send_message(message.channel, output_string)
 
 read_config()
 client.run(discord_token)
